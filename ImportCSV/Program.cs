@@ -32,13 +32,14 @@ namespace ImportCSV
             using (new RDPCredentials(host, username, password))
             { 
                 //Step1.3. 找到相對應File
-                FileInfo readfile = new FileInfo($@"\\{host}\d$\{RDPfile}\{localfile}.csv");
+                DirectoryInfo readfile = new DirectoryInfo($@"\\{host}\d$\{RDPfile}\{localfile}.csv");
                 //Step1.4. 將File中的資料存入var
                 string LastWriteTime = File.GetLastWriteTime(readfile.ToString()).ToString("yyyyMMdd");
                 //Step1.5. 修改名稱(原File_修改日期yyyyMMdd)--備份
-                var FileName = readfile.Name.ToString().Replace(".csv", "");
-                readfile.MoveTo(FileName + "_" + LastWriteTime + ".csv");
+                var FileName = Path.GetFileName(readfile.ToString().Replace(".csv",""));
+                readfile.MoveTo($@"\\{host}\d$\{RDPfile}\" + FileName + "_" + LastWriteTime + ".csv");
                 //Step1.6. 將下載的File 複製到 mstv
+                File.Copy(readlocalfile.ToString(), $@"\\{host}\d$\{RDPfile}\" + FileName +".csv");
             }
 
 
@@ -63,7 +64,7 @@ namespace ImportCSV
     }
 
     #region -- connect RDP --
-    internal class RDPCredentials : IDisposable
+     class RDPCredentials : IDisposable
     {
         private string Host { get; }
 
