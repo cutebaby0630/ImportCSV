@@ -90,6 +90,7 @@ namespace SqlServerHelper.Core
             _userPwd = userPwd;
 
             _connectingString = String.Format(_connString, _dataSource, _dataBase, _userID, _userPwd);
+            _connection = GetSqlDbConnection();
         }
 
         /// <summary>
@@ -99,6 +100,7 @@ namespace SqlServerHelper.Core
         public SqlServerDBHelper(String connectString)
         {
             _connectingString = connectString;
+            _connection = GetSqlDbConnection();
         }
 
         /// <summary>
@@ -488,7 +490,10 @@ namespace SqlServerHelper.Core
             using (SqlCommand cmd = new SqlCommand(sql, _connection))
             {
                 DataTable dt = new DataTable();
-
+                if (_connection.State != ConnectionState.Open)
+                {
+                    _connection.Open();
+                }
                 var reader = await cmd.ExecuteReaderAsync().ConfigureAwait(false);
 
                 dt.Load(reader);
@@ -602,6 +607,6 @@ namespace SqlServerHelper.Core
 
         #endregion
 
-       
+
     }
 }
