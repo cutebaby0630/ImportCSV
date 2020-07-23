@@ -33,28 +33,28 @@ namespace ImportCSV
             string firstColumnName = local_dt.Columns[0].ColumnName;
             DataRow[] rows = local_dt.Select();
 
-            // Print the value one column of each DataRow.
-            for (int i = 0; i < rows.Length; i++)
-            {
-                Console.WriteLine(rows[i][firstColumnName]);
-            }
             //Step1.2. 檔案讀取→\\10.1.225.17\d$\csv  \\10.1.225.17\d$\CSV - 複製
             var host = @"10.1.225.17";
             var RDPfile = "CSV_20200721";
             var username = @"LAPTOP-ODUSIH5U\Administrator";
             var password = "p@ssw0rd";
+            //string old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + "5.csv";
+            string old_path = "";
+            string new_path = $@"\\{host}\d$\{RDPfile}\" + filename + ".csv";
             using (new RDPCredentials(host, username, password))
             {
+                
                 //Step1.3. 找到相對應File
                 DirectoryInfo readfile = new DirectoryInfo($@"\\{host}\d$\{RDPfile}\{filename}.csv");
                 //Step1.4. 將File中的資料存入var
                 string LastWriteTime = File.GetLastWriteTime(readfile.ToString()).ToString("yyyyMMdd");
+                old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + LastWriteTime + ".csv";
                 //Step1.5. 修改名稱(原File_修改日期yyyyMMdd)--備份
                 //readfile.MoveTo($@"\\{host}\d$\{RDPfile}\" + filename + "_" + LastWriteTime + ".csv");
-                readfile.MoveTo($@"\\{host}\d$\{RDPfile}\" + filename + "_" + "1.csv");
+                readfile.MoveTo(old_path);
 
                 //Step1.6. 將下載的File 複製到 mstv
-                File.Copy(readlocalfile.ToString(), $@"\\{host}\d$\{RDPfile}\" + filename + ".csv");
+                File.Copy(readlocalfile.ToString(), new_path);
 
             }
             //Step2. SSMS import CSV
@@ -121,11 +121,19 @@ namespace ImportCSV
             }
             //Step3.3. 回傳比對結果
             Console.WriteLine(status);
-
-            
-            
             //Step3.3.1 如果失敗必須先將備份的File名稱rename
+            if (!status)
+            {
+                using (new RDPCredentials(host, username, password))
+                {
+                    FileInfo readfile_new = new FileInfo(new_path);
+                    readfile_new.Delete();
+                    DirectoryInfo readfile_old = new DirectoryInfo(old_path);
+                    readfile_old.MoveTo(new_path);
+                }
+            }
             //Step3.3.2 重新匯入225.17
+            var reault = sqlHelper.FillTableAsync(sqlCSV).Result;
 
             //Step4. 比對新跟舊的差異發送Email
             //Step4.1. 將List_(日期)和List_filenew比對差異
@@ -137,7 +145,8 @@ namespace ImportCSV
             //Step5.2 執行同步到各個DB
         }
 
-        //CSV to datatable
+
+        #region -- CSV to datatable --
         public static DataTable TxtConvertToDataTable(string File, string TableName, string delimiter)
         {
             DataTable dt = new DataTable();
@@ -186,8 +195,7 @@ namespace ImportCSV
 
             return dt;
         }
-
-
+        #endregion
     }
 
     #region -- connect RDP --
@@ -244,7 +252,5 @@ namespace ImportCSV
         }
     }
     #endregion
-
-
 
 }
