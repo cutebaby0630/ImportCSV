@@ -1,22 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Drawing;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using Microsoft.Extensions.Configuration;
-using OfficeOpenXml;
-using OfficeOpenXml.Style;
 using SqlServerHelper.Core;
 using SqlServerHelper;
 using System.Diagnostics;
-using ServiceStack;
-using Microsoft.VisualBasic;
-using NPOI.SS.Formula.Functions;
-using System.Reflection;
-using System.Text;
-using Microsoft.VisualBasic.FileIO;
 
 namespace ImportCSV
 {
@@ -35,7 +24,7 @@ namespace ImportCSV
 
             //Step1.2. 檔案讀取→\\10.1.225.17\d$\csv  \\10.1.225.17\d$\CSV - 複製
             var host = @"10.1.225.17";
-            var RDPfile = "CSV_20200721";
+            var RDPfile = "CSV";
             var username = @"LAPTOP-ODUSIH5U\Administrator";
             var password = "p@ssw0rd";
             string old_path = "";
@@ -47,8 +36,8 @@ namespace ImportCSV
                 DirectoryInfo readfile = new DirectoryInfo($@"\\{host}\d$\{RDPfile}\{filename}.csv");
                 //Step1.4. 將File中的資料存入var
                 string LastWriteTime = File.GetLastWriteTime(readfile.ToString()).ToString("yyyyMMdd");
-                //old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + LastWriteTime + ".csv";
-                old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + "3.csv";
+                old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + LastWriteTime + ".csv";
+                //old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + "2.csv";
 
                 //Step1.5. 修改名稱(原File_修改日期yyyyMMdd)--備份
                 //readfile.MoveTo($@"\\{host}\d$\{RDPfile}\" + filename + "_" + LastWriteTime + ".csv");
@@ -97,6 +86,8 @@ namespace ImportCSV
             DataTable new_CSV_dt = sqlHelper.FillTableAsync(sqlCSV).Result;
             int rowCount = (new_CSV_dt == null) ? 0 : new_CSV_dt.Rows.Count;
             Console.WriteLine(rowCount);
+            int rowCount_old = (old_CSV_dt == null) ? 0 : old_CSV_dt.Rows.Count;
+            Console.WriteLine(rowCount_old);
             DataRow[] id_row = new_CSV_dt.Select();
 
             //Step3. 核對 SQL 跟 檔案中筆數及ID是否正確
@@ -137,14 +128,15 @@ namespace ImportCSV
                 // Step3.3.2 重新匯入225.17
                 var reault = sqlHelper.FillTableAsync(sqlCSV).Result;
             }
-            else {
+            else
+            {
                 //Step4. 比對新跟舊的差異發送Email
                 DataTable compare_result = CompareRows(old_CSV_dt, new_CSV_dt);
                 DatatableToHTML datatableToHTML = new DatatableToHTML();
                 //Step4.3. 將List_sync利用Email寄發
                 var helper = new SMTPHelper("lovemath0630@gmail.com", "koormyktfbbacpmj", "smtp.gmail.com", 587, true, true); //寄出信email
-                string subject = $"Datebase Scheduler報表 {DateTime.Now.ToString("yyyyMMdd")}"; //信件主旨
-                string body = $"Hi All, \r\n\r\n{DateTime.Now.ToString("yyyyMMdd")} {filename}.csv更改如下表，\r\n\r\n{(datatableToHTML.ToHTML(compare_result)==null ? string.Empty: datatableToHTML.ToHTML(compare_result))}\r\n\r\n Best Regards, \r\n\r\n Vicky Yin";//信件內容
+                string subject = $"Initial Data異動 {DateTime.Now.ToString("yyyyMMdd")}"; //信件主旨
+                string body = $"Hi All, \r\n\r\n{DateTime.Now.ToString("yyyyMMdd")} {filename}.csv更改如下表，\r\n\r\n{(datatableToHTML.ToHTML(compare_result) == null ? string.Empty : datatableToHTML.ToHTML(compare_result))}\r\n\r\n Best Regards, \r\n\r\n Vicky Yin";//信件內容
                 string attachments = null;//附件
                 /*var fileName = @"D:\微軟MCS\SchedulerDB_Excel\" + excelname;//附件位置
                 if (File.Exists(fileName.ToString()))
@@ -155,6 +147,7 @@ namespace ImportCSV
                 string ccMailList = "";//CC收件者
 
                 helper.SendMail(toMailList, ccMailList, null, subject, body, null);
+
                 //Step5. 同步到各個DB
                 //Step5.1 讀取相對應SyncData
                 //Step5.2 執行同步到各個DB
@@ -164,6 +157,7 @@ namespace ImportCSV
         #region --Compare two table--
         public static DataTable CompareRows(DataTable sourceTable, DataTable checkTable)
         {
+            var sourceArray = new object[0];
             DataTable resultTable = sourceTable.Clone();
             resultTable.Clear();
             if (checkTable.Rows.Count == 0)
@@ -174,13 +168,16 @@ namespace ImportCSV
             {
                 for (int i = 0; i < checkTable.Rows.Count; i++)
                 {
-                    var sourceArray = sourceTable.Rows[i].ItemArray;
+                    if (i < sourceTable.Rows.Count)
+                    {
+                        sourceArray = sourceTable.Rows[i].ItemArray;
+                    }
                     var checkArray = checkTable.Rows[i].ItemArray;
                     //Step4.1. 將sourceTable和checkTable比對差異
-                    if (!sourceArray.SequenceEqual(checkArray))
+                    if (!sourceArray.SequenceEqual(checkArray) || sourceArray.Length == 0)
                     {
                         DataRow rtRow = resultTable.NewRow();
-                        rtRow.ItemArray = sourceTable.Rows[i].ItemArray;
+                        rtRow.ItemArray = checkTable.Rows[i].ItemArray;
                         //Step4.2. 差異利用resultTable儲存
                         resultTable.Rows.Add(rtRow);
                     }
@@ -239,7 +236,7 @@ namespace ImportCSV
             return dt;
         }
         #endregion
-        
+
     }
 
     #region -- connect RDP --
