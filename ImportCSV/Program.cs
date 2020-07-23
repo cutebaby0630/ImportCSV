@@ -43,7 +43,7 @@ namespace ImportCSV
             string new_path = $@"\\{host}\d$\{RDPfile}\" + filename + ".csv";
             using (new RDPCredentials(host, username, password))
             {
-                
+
                 //Step1.3. 找到相對應File
                 DirectoryInfo readfile = new DirectoryInfo($@"\\{host}\d$\{RDPfile}\{filename}.csv");
                 //Step1.4. 將File中的資料存入var
@@ -64,6 +64,7 @@ namespace ImportCSV
             string connString = config.GetConnectionString("DefaultConnection");
             SqlServerDBHelper sqlHelper = new SqlServerDBHelper(string.Format(connString, "HISDB", "msdba", "1qaz@wsx"));
             //Step2.2. 將檔案名稱丟入SQL
+            string sqlOldCSV = $@"select * from {filename}";
             string sqlCSV = $@"--use [HISDB];
                               --use[HISBILLINGDB];
                               --, CODEPAGE = 65001
@@ -91,10 +92,11 @@ namespace ImportCSV
                              IF @ERR_NO = 0 BEGIN
                              EXEC('SELECT * FROM ' + @TABLENAME);
                              END;";
-            DataTable impotCSV_dt = sqlHelper.FillTableAsync(sqlCSV).Result;
-            int rowCount = (impotCSV_dt == null) ? 0 : impotCSV_dt.Rows.Count;
+            DataTable old_CSV_dt = sqlHelper.FillTableAsync(sqlOldCSV).Result;
+            DataTable new_CSV_dt = sqlHelper.FillTableAsync(sqlCSV).Result;
+            int rowCount = (new_CSV_dt == null) ? 0 : new_CSV_dt.Rows.Count;
             Console.WriteLine(rowCount);
-            DataRow[] id_row = impotCSV_dt.Select();
+            DataRow[] id_row = new_CSV_dt.Select();
 
             //Step3. 核對 SQL 跟 檔案中筆數及ID是否正確
             bool status = true;
@@ -131,21 +133,49 @@ namespace ImportCSV
                     DirectoryInfo readfile_old = new DirectoryInfo(old_path);
                     readfile_old.MoveTo(new_path);
                 }
+                // Step3.3.2 重新匯入225.17
+                var reault = sqlHelper.FillTableAsync(sqlCSV).Result;
             }
-            //Step3.3.2 重新匯入225.17
-            var reault = sqlHelper.FillTableAsync(sqlCSV).Result;
+            else {
+                //Step4. 比對新跟舊的差異發送Email
+                DataTable compare_result = CompareRows(old_CSV_dt, new_CSV_dt);
+            
+                //Step4.3. 將List_sync利用Email寄發
 
-            //Step4. 比對新跟舊的差異發送Email
-            //Step4.1. 將List_(日期)和List_filenew比對差異
-            //Step4.2. 差異利用List_sync儲存
-            //Step4.3. 將List_sync利用Email寄發
-
-            //Step5. 同步到各個DB
-            //Step5.1 讀取相對應SyncData
-            //Step5.2 執行同步到各個DB
+                //Step5. 同步到各個DB
+                //Step5.1 讀取相對應SyncData
+                //Step5.2 執行同步到各個DB
+            }
         }
 
-
+        #region --Compare two table--
+        public static DataTable CompareRows(DataTable sourceTable, DataTable checkTable)
+        {
+            DataTable resultTable = sourceTable.Clone();
+            resultTable.Clear();
+            if (checkTable.Rows.Count == 0)
+            {
+                resultTable = sourceTable.Copy();
+            }
+            else
+            {
+                for (int i = 0; i < checkTable.Rows.Count; i++)
+                {
+                    var sourceArray = sourceTable.Rows[i].ItemArray;
+                    var checkArray = checkTable.Rows[i].ItemArray;
+                    //Step4.1. 將sourceTable和checkTable比對差異
+                    if (!sourceArray.SequenceEqual(checkArray))
+                    {
+                        DataRow rtRow = resultTable.NewRow();
+                        rtRow.ItemArray = sourceTable.Rows[i].ItemArray;
+                        //Step4.2. 差異利用resultTable儲存
+                        resultTable.Rows.Add(rtRow);
+                    }
+                }
+            }
+            return resultTable;
+        }
+        #endregion
         #region -- CSV to datatable --
         public static DataTable TxtConvertToDataTable(string File, string TableName, string delimiter)
         {
