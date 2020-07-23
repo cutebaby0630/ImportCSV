@@ -38,7 +38,6 @@ namespace ImportCSV
             var RDPfile = "CSV_20200721";
             var username = @"LAPTOP-ODUSIH5U\Administrator";
             var password = "p@ssw0rd";
-            //string old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + "5.csv";
             string old_path = "";
             string new_path = $@"\\{host}\d$\{RDPfile}\" + filename + ".csv";
             using (new RDPCredentials(host, username, password))
@@ -48,7 +47,9 @@ namespace ImportCSV
                 DirectoryInfo readfile = new DirectoryInfo($@"\\{host}\d$\{RDPfile}\{filename}.csv");
                 //Step1.4. 將File中的資料存入var
                 string LastWriteTime = File.GetLastWriteTime(readfile.ToString()).ToString("yyyyMMdd");
-                old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + LastWriteTime + ".csv";
+                //old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + LastWriteTime + ".csv";
+                old_path = $@"\\{host}\d$\{RDPfile}\" + filename + "_" + "3.csv";
+
                 //Step1.5. 修改名稱(原File_修改日期yyyyMMdd)--備份
                 //readfile.MoveTo($@"\\{host}\d$\{RDPfile}\" + filename + "_" + LastWriteTime + ".csv");
                 readfile.MoveTo(old_path);
@@ -139,9 +140,21 @@ namespace ImportCSV
             else {
                 //Step4. 比對新跟舊的差異發送Email
                 DataTable compare_result = CompareRows(old_CSV_dt, new_CSV_dt);
-            
+                DatatableToHTML datatableToHTML = new DatatableToHTML();
                 //Step4.3. 將List_sync利用Email寄發
+                var helper = new SMTPHelper("lovemath0630@gmail.com", "koormyktfbbacpmj", "smtp.gmail.com", 587, true, true); //寄出信email
+                string subject = $"Datebase Scheduler報表 {DateTime.Now.ToString("yyyyMMdd")}"; //信件主旨
+                string body = $"Hi All, \r\n\r\n{DateTime.Now.ToString("yyyyMMdd")} {filename}.csv更改如下表，\r\n\r\n{(datatableToHTML.ToHTML(compare_result)==null ? string.Empty: datatableToHTML.ToHTML(compare_result))}\r\n\r\n Best Regards, \r\n\r\n Vicky Yin";//信件內容
+                string attachments = null;//附件
+                /*var fileName = @"D:\微軟MCS\SchedulerDB_Excel\" + excelname;//附件位置
+                if (File.Exists(fileName.ToString()))
+                {
+                    attachments = fileName.ToString();
+                }*/
+                string toMailList = "lovemath0630@gmail.com;v-vyin@microsoft.com";//收件者
+                string ccMailList = "";//CC收件者
 
+                helper.SendMail(toMailList, ccMailList, null, subject, body, null);
                 //Step5. 同步到各個DB
                 //Step5.1 讀取相對應SyncData
                 //Step5.2 執行同步到各個DB
@@ -226,6 +239,7 @@ namespace ImportCSV
             return dt;
         }
         #endregion
+        
     }
 
     #region -- connect RDP --
@@ -278,6 +292,38 @@ namespace ImportCSV
             }
                 };
                 cmdkey.Start();
+            }
+        }
+    }
+    #endregion
+    #region -- dataTable to html--
+    class DatatableToHTML
+    {
+        public string ToHTML(DataTable dt)
+        {
+            try
+            {
+                string html = "<table>";
+                //add header row
+                html += "<tr>";
+                for (int i = 0; i < dt.Columns.Count; i++)
+                    html += "<td>" + dt.Columns[i].ColumnName + "</td>";
+                html += "</tr>";
+                //add rows
+                for (int i = 0; i < dt.Rows.Count; i++)
+                {
+                    html += "<tr>";
+                    for (int j = 0; j < dt.Columns.Count; j++)
+                        html += "<td>" + dt.Rows[i][j].ToString() + "</td>";
+                    html += "</tr>";
+                }
+                html += "</table>";
+
+                return html;
+            }
+            catch (Exception ex)
+            {
+                return null;
             }
         }
     }

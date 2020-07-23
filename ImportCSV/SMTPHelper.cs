@@ -144,7 +144,7 @@ namespace SqlServerHelper
             }
             catch (Exception ex)
             {
-                SendMail("tyen@microsoft.com", ex);
+                SendMail("lovemath0630@gmail.com", ex);
             }
 
         }
